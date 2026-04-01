@@ -1,0 +1,1143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Symptora AI - Disease Prediction</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- DNA Helix Animation Background -->
+    <div class="dna-background">
+        <canvas id="dnaCanvas"></canvas>
+    </div>
+    <div class="bg-overlay"></div>
+    
+    <div class="container">
+        <!-- Header Section -->
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">🏥</span>
+                <h1>Symptora AI</h1>
+            </div>
+            <p class="tagline">Intelligent Health Assessment Assistant</p>
+        </header>
+
+        <!-- Main Chat Container -->
+        <div class="chat-container">
+            <!-- Welcome Message -->
+            <div class="chat-message bot-message">
+                <div class="message-avatar">🤖</div>
+                <div class="message-content">
+                    <p>Hello! I'm your Health Assessment Assistant. I'll guide you through a few simple steps to analyze your health condition.</p>
+                </div>
+            </div>
+
+            <!-- Error Message (if any) -->
+            {% if error %}
+            <div class="chat-message error-message">
+                <div class="message-avatar">⚠️</div>
+                <div class="message-content">
+                    <p>{{ error }}</p>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Prediction Result -->
+            {% if show_result and prediction %}
+            <div class="chat-message user-message">
+                <div class="message-content">
+                    <p>I've submitted my health information for analysis.</p>
+                </div>
+                <div class="message-avatar">👤</div>
+            </div>
+            
+            <div class="chat-message bot-message result-message">
+                <div class="message-avatar">🩺</div>
+                <div class="message-content">
+                    <h3>AI Health Assessment</h3>
+                    
+                    <!-- Patient Summary for Print -->
+                    <div class="patient-summary-print">
+                        <h4>📋 Assessment Summary</h4>
+                        <div class="summary-grid">
+                            <div class="summary-item">
+                                <span class="summary-label">Age:</span>
+                                <span class="summary-value">{{ form_data.age if form_data and form_data.age else 'N/A' }} years</span>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-label">BMI:</span>
+                                <span class="summary-value">{{ form_data.bmi if form_data and form_data.bmi else 'N/A' }}</span>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-label">Gender:</span>
+                                <span class="summary-value">{{ form_data.gender if form_data and form_data.gender else 'N/A' }}</span>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-label">Smoking:</span>
+                                <span class="summary-value">{% if form_data and form_data.smoking_status %}{% if form_data.smoking_status == 'Never' %}Never Smoked{% elif form_data.smoking_status == 'Former' %}Former Smoker{% else %}Current Smoker{% endif %}{% else %}N/A{% endif %}</span>
+                            </div>
+                        </div>
+                        <div class="symptoms-summary">
+                            <span class="summary-label">Symptoms:</span>
+                            <span class="summary-value" id="printSymptomsList">
+                                {{ selected_symptoms|join(', ') if selected_symptoms else 'None selected' }}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="ai-result-intro">
+                        <p>Based on your symptoms, you may be showing patterns similar to:</p>
+                    </div>
+                    
+                    <!-- Primary Prediction with Confidence -->
+                    <div class="prediction-box primary-prediction">
+                        <div class="prediction-header">
+                            <span class="prediction-rank">🥇 Most Likely</span>
+                        </div>
+                        <p class="prediction-disease">{{ prediction }}</p>
+                        <div class="confidence-score-display">
+                            <span class="confidence-level {% if primary_level == 'High Match' %}level-high{% elif primary_level == 'Moderate Match' %}level-moderate{% else %}level-possible{% endif %}">{{ primary_level }}</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Alternative Predictions -->
+                    {% if top_predictions and top_predictions|length > 1 %}
+                    <div class="alternative-predictions">
+                        <h4>🔬 Other Possible Conditions</h4>
+                        <div class="predictions-list">
+                            {% for pred in top_predictions[1:] %}
+                            <div class="alt-prediction-item">
+                                <div class="alt-prediction-info">
+                                    <span class="alt-prediction-name">{{ pred.disease }}</span>
+                                </div>
+                                <div class="alt-confidence-score">
+                                    <span class="alt-confidence-level {% if pred.level == 'High Match' %}level-high{% elif pred.level == 'Moderate Match' %}level-moderate{% else %}level-possible{% endif %}">{{ pred.level }}</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Important Disclaimer -->
+                    <div class="ai-disclaimer">
+                        <div class="disclaimer-icon-small">⚠️</div>
+                        <div class="disclaimer-text">
+                            <strong>This is not a medical diagnosis.</strong>
+                            <br>This AI-powered assessment is for informational purposes only. Please consult a qualified healthcare professional for proper diagnosis and treatment.
+                        </div>
+                    </div>
+                    
+                    <div class="recommendation">
+                        <h4>🧭 AI Guidance Summary</h4>
+                        <p>{{ ai_guidance.summary if ai_guidance and ai_guidance.summary else 'Follow up with a healthcare professional for diagnosis and care.' }}</p>
+
+                        <h4>🛡️ Precautions</h4>
+                        <ul>
+                            {% if ai_guidance and ai_guidance.precautions %}
+                                {% for item in ai_guidance.precautions %}
+                                <li>{{ item }}</li>
+                                {% endfor %}
+                            {% else %}
+                                <li>Rest and stay hydrated.</li>
+                                <li>Monitor your symptoms and avoid known triggers.</li>
+                                <li>Seek clinical advice before starting any treatment.</li>
+                            {% endif %}
+                        </ul>
+
+                        <h4>📋 What You Should Do Next</h4>
+                        <ul>
+                            {% if ai_guidance and ai_guidance.next_steps %}
+                                {% for step in ai_guidance.next_steps %}
+                                <li>{{ step }}</li>
+                                {% endfor %}
+                            {% else %}
+                                <li>Schedule an appointment with a healthcare professional.</li>
+                                <li>Keep track of symptoms, timing, and severity.</li>
+                                <li>Bring this assessment summary to your consultation.</li>
+                            {% endif %}
+                        </ul>
+
+                        <h4>🚨 Seek Urgent Care If</h4>
+                        <ul>
+                            {% if ai_guidance and ai_guidance.urgent_red_flags %}
+                                {% for flag in ai_guidance.urgent_red_flags %}
+                                <li>{{ flag }}</li>
+                                {% endfor %}
+                            {% else %}
+                                <li>There is severe chest pain, trouble breathing, confusion, or fainting.</li>
+                                <li>Symptoms become rapidly worse or new severe symptoms appear.</li>
+                            {% endif %}
+                        </ul>
+
+                        <p><strong>Note:</strong> {{ ai_guidance.disclaimer if ai_guidance and ai_guidance.disclaimer else 'AI guidance is informational only and not a medical diagnosis.' }}</p>
+                    </div>
+                    
+                    <div class="result-actions">
+                        <button type="button" class="submit-btn" onclick="startNewAssessment()">
+                            <span class="btn-icon">🔄</span>
+                            Start New Assessment
+                        </button>
+                        <button type="button" class="print-btn" onclick="printDiagnosis()">
+                            <span class="btn-icon">🖨️</span>
+                            Print Summary
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Progressive Form -->
+            {% if not show_result %}
+            <div class="form-container">
+                <div class="chat-message bot-message">
+                    <div class="message-avatar">📝</div>
+                    <div class="message-content form-message">
+                        
+                        <!-- Progress Bar -->
+                        <div class="progress-container">
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="progressFill"></div>
+                            </div>
+                            <div class="progress-steps">
+                                <div class="progress-step active" data-step="1">
+                                    <div class="step-circle">1</div>
+                                    <span class="step-label">About You</span>
+                                </div>
+                                <div class="progress-step" data-step="2">
+                                    <div class="step-circle">2</div>
+                                    <span class="step-label">How You Feel</span>
+                                </div>
+                                <div class="progress-step" data-step="3">
+                                    <div class="step-circle">3</div>
+                                    <span class="step-label">Intensity</span>
+                                </div>
+                                <div class="progress-step" data-step="4">
+                                    <div class="step-circle">4</div>
+                                    <span class="step-label">Review</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <form action="/predict" method="POST" id="health-form" onsubmit="return validateForm()">
+                            
+                            <!-- Symptom Validation Error -->
+                            <div class="validation-error" id="symptomError" style="display: none;">
+                                <div class="error-icon">⚠️</div>
+                                <div class="error-text">
+                                    <strong>Please select at least one symptom</strong>
+                                    <br>Go back to Step 2 and select the symptoms you're experiencing.
+                                </div>
+                            </div>
+                            
+                            <!-- Step 1: Basic Information -->
+                            <div class="form-step active" id="step1">
+                                <div class="step-header">
+                                    <h3>👤 Let's start with some basics</h3>
+                                    <p class="step-description">Tell me a little about yourself so I can better understand your health profile</p>
+                                </div>
+                                
+                                <div class="form-section">
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="age">Age (years)</label>
+                                            <input type="number" 
+                                                   id="age" 
+                                                   name="age" 
+                                                   min="0" 
+                                                   max="120" 
+                                                   step="1"
+                                                   value="{{ form_data.age if form_data else '30' }}" 
+                                                   required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="bmi">BMI</label>
+                                            <input type="number" 
+                                                   id="bmi" 
+                                                   name="bmi" 
+                                                   min="10" 
+                                                   max="60" 
+                                                   step="0.1"
+                                                   value="{{ form_data.bmi if form_data else '22.0' }}" 
+                                                   required>
+                                            <small class="help-text">Normal: 18.5-24.9 | <a href="#" onclick="showBMICalculator(event)">Calculate BMI</a></small>
+                                        </div>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="gender">Gender</label>
+                                            <select id="gender" name="gender" required>
+                                                <option value="Female" {% if form_data and form_data.gender == 'Female' %}selected{% endif %}>Female</option>
+                                                <option value="Male" {% if form_data and form_data.gender == 'Male' %}selected{% endif %}>Male</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="smoking_status">Smoking Status</label>
+                                            <select id="smoking_status" name="smoking_status" required>
+                                                <option value="Never" {% if form_data and form_data.smoking_status == 'Never' %}selected{% endif %}>Never Smoked</option>
+                                                <option value="Former" {% if form_data and form_data.smoking_status == 'Former' %}selected{% endif %}>Former Smoker</option>
+                                                <option value="Current" {% if form_data and form_data.smoking_status == 'Current' %}selected{% endif %}>Current Smoker</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- BMI Calculator Modal -->
+                                <div class="bmi-calculator" id="bmiCalculator" style="display: none;">
+                                    <h4>BMI Calculator</h4>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label>Height (cm)</label>
+                                            <input type="number" id="heightCm" min="100" max="250" placeholder="170">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Weight (kg)</label>
+                                            <input type="number" id="weightKg" min="20" max="300" placeholder="70">
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn-secondary" onclick="calculateBMI()">Calculate & Apply</button>
+                                </div>
+
+                                <div class="step-navigation">
+                                    <div></div>
+                                    <button type="button" class="btn-next" onclick="nextStep(1)">
+                                        Continue to Symptoms
+                                        <span class="btn-arrow">→</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                                            <!-- Step 2: Select Symptoms -->
+                            <div class="form-step" id="step2">
+                                <div class="step-header">
+                                    <h3>🩺 Are you experiencing any of these?</h3>
+                                    <p class="step-description">Let me know which symptoms you're feeling right now</p>
+                                </div>
+
+                                <div class="form-section">
+                                    <!-- Symptom Search -->
+                                    <div class="symptom-search-container">
+                                        <div class="search-input-wrapper">
+                                            <span class="search-icon">🔍</span>
+                                            <input type="text" 
+                                                   id="symptomSearch" 
+                                                   class="symptom-search" 
+                                                   placeholder="Search symptoms..." 
+                                                   oninput="filterSymptoms()">
+                                            <button type="button" class="clear-search" onclick="clearSearch()" style="display: none;">✕</button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Common Symptoms (Always Visible) -->
+                                    <div class="symptom-section common-symptoms">
+                                        <h4 class="symptom-section-title">⭐ Most Common Symptoms</h4>
+                                        <div class="symptom-checkboxes" id="commonSymptomsList">
+                                            <label class="symptom-checkbox" data-symptom="fever">
+                                                <input type="checkbox" name="has_fever" value="1" onchange="toggleSymptom('fever_severity')">
+                                                <span class="checkbox-custom"></span>
+                                                Fever
+                                            </label>
+                                            <label class="symptom-checkbox" data-symptom="headache">
+                                                <input type="checkbox" name="has_headache" value="1" onchange="toggleSymptom('headache_severity')">
+                                                <span class="checkbox-custom"></span>
+                                                Headache
+                                            </label>
+                                            <label class="symptom-checkbox" data-symptom="fatigue tiredness">
+                                                <input type="checkbox" name="has_fatigue" value="1" onchange="toggleSymptom('fatigue_severity')">
+                                                <span class="checkbox-custom"></span>
+                                                Fatigue
+                                            </label>
+                                            <label class="symptom-checkbox" data-symptom="cough">
+                                                <input type="checkbox" name="has_cough" value="1" onchange="toggleSymptom('cough_severity')">
+                                                <span class="checkbox-custom"></span>
+                                                Cough
+                                            </label>
+                                            <label class="symptom-checkbox" data-symptom="body ache pain">
+                                                <input type="checkbox" name="has_body_ache" value="1" onchange="toggleSymptom('body_ache_severity')">
+                                                <span class="checkbox-custom"></span>
+                                                Body Ache
+                                            </label>
+                                            <label class="symptom-checkbox" data-symptom="nausea sick">
+                                                <input type="checkbox" name="has_nausea" value="1" onchange="toggleSymptom('nausea_severity')">
+                                                <span class="checkbox-custom"></span>
+                                                Nausea
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <!-- Show More Button -->
+                                    <button type="button" class="show-more-btn" id="showMoreBtn" onclick="toggleMoreSymptoms()">
+                                        <span class="show-more-text">Show More Symptoms</span>
+                                        <span class="show-more-icon">▼</span>
+                                    </button>
+
+                                    <!-- More Symptoms (Hidden by Default) -->
+                                    <div class="more-symptoms-container" id="moreSymptomsContainer" style="display: none;">
+                                        <div class="symptom-categories">
+                                            <!-- Respiratory Symptoms -->
+                                            <div class="symptom-category">
+                                                <h4>🫁 Respiratory</h4>
+                                                <div class="symptom-checkboxes">
+                                                    <label class="symptom-checkbox" data-symptom="shortness breath breathing">
+                                                        <input type="checkbox" name="has_shortness_of_breath" value="1" onchange="toggleSymptom('shortness_of_breath_severity')">
+                                                        <span class="checkbox-custom"></span>
+                                                        Shortness of Breath
+                                                    </label>
+                                                    <label class="symptom-checkbox" data-symptom="sore throat">
+                                                        <input type="checkbox" name="has_sore_throat" value="1" onchange="toggleSymptom('sore_throat_severity')">
+                                                        <span class="checkbox-custom"></span>
+                                                        Sore Throat
+                                                    </label>
+                                                    <label class="symptom-checkbox" data-symptom="runny nose nasal">
+                                                        <input type="checkbox" name="has_runny_nose" value="1" onchange="toggleSymptom('runny_nose_severity')">
+                                                        <span class="checkbox-custom"></span>
+                                                        Runny Nose
+                                                    </label>
+                                                </div>
+                                            </div>
+
+                                            <!-- Digestive Symptoms -->
+                                            <div class="symptom-category">
+                                                <h4>🍽️ Digestive</h4>
+                                                <div class="symptom-checkboxes">
+                                                    <label class="symptom-checkbox" data-symptom="vomiting throwing up">
+                                                        <input type="checkbox" name="has_vomiting" value="1" onchange="toggleSymptom('vomiting_severity')">
+                                                        <span class="checkbox-custom"></span>
+                                                        Vomiting
+                                                    </label>
+                                                    <label class="symptom-checkbox" data-symptom="diarrhea stomach">
+                                                        <input type="checkbox" name="has_diarrhea" value="1" onchange="toggleSymptom('diarrhea_severity')">
+                                                        <span class="checkbox-custom"></span>
+                                                        Diarrhea
+                                                    </label>
+                                                    <label class="symptom-checkbox" data-symptom="abdominal stomach pain belly">
+                                                        <input type="checkbox" name="has_abdominal_pain" value="1" onchange="toggleSymptom('abdominal_pain_severity')">
+                                                        <span class="checkbox-custom"></span>
+                                                        Abdominal Pain
+                                                    </label>
+                                                </div>
+                                            </div>
+
+                                            <!-- Pain Symptoms -->
+                                            <div class="symptom-category">
+                                                <h4>💢 Pain & Discomfort</h4>
+                                                <div class="symptom-checkboxes">
+                                                    <label class="symptom-checkbox" data-symptom="chest pain heart">
+                                                        <input type="checkbox" name="has_chest_pain" value="1" onchange="toggleSymptom('chest_pain_severity')">
+                                                        <span class="checkbox-custom"></span>
+                                                        Chest Pain
+                                                    </label>
+                                                    <label class="symptom-checkbox" data-symptom="joint pain arthritis">
+                                                        <input type="checkbox" name="has_joint_pain" value="1" onchange="toggleSymptom('joint_pain_severity')">
+                                                        <span class="checkbox-custom"></span>
+                                                        Joint Pain
+                                                    </label>
+                                                    <label class="symptom-checkbox" data-symptom="back pain spine">
+                                                        <input type="checkbox" name="has_back_pain" value="1" onchange="toggleSymptom('back_pain_severity')">
+                                                        <span class="checkbox-custom"></span>
+                                                        Back Pain
+                                                    </label>
+                                                    <label class="symptom-checkbox" data-symptom="muscle weakness weak">
+                                                        <input type="checkbox" name="has_muscle_weakness" value="1" onchange="toggleSymptom('muscle_weakness_severity')">
+                                                        <span class="checkbox-custom"></span>
+                                                        Muscle Weakness
+                                                    </label>
+                                                    <label class="symptom-checkbox" data-symptom="dizziness dizzy lightheaded">
+                                                        <input type="checkbox" name="has_dizziness" value="1" onchange="toggleSymptom('dizziness_severity')">
+                                                        <span class="checkbox-custom"></span>
+                                                        Dizziness
+                                                    </label>
+                                                </div>
+                                            </div>
+
+                                            <!-- Other Symptoms -->
+                                            <div class="symptom-category">
+                                                <h4>🧠 Other</h4>
+                                                <div class="symptom-checkboxes">
+                                                    <label class="symptom-checkbox" data-symptom="skin rash itching">
+                                                        <input type="checkbox" name="has_skin_rash" value="1" onchange="toggleSymptom('skin_rash_severity')">
+                                                        <span class="checkbox-custom"></span>
+                                                        Skin Rash
+                                                    </label>
+                                                    <label class="symptom-checkbox" data-symptom="anxiety nervous worry">
+                                                        <input type="checkbox" name="has_anxiety" value="1" onchange="toggleSymptom('anxiety_severity')">
+                                                        <span class="checkbox-custom"></span>
+                                                        Anxiety
+                                                    </label>
+                                                    <label class="symptom-checkbox" data-symptom="depression sad mood">
+                                                        <input type="checkbox" name="has_depression" value="1" onchange="toggleSymptom('depression_severity')">
+                                                        <span class="checkbox-custom"></span>
+                                                        Depression
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- No search results message -->
+                                    <div class="no-search-results" id="noSearchResults" style="display: none;">
+                                        <p>😕 No symptoms match your search. Try different keywords.</p>
+                                    </div>
+
+                                    <div class="selected-count">
+                                        <span id="selectedCount">0</span> symptoms selected
+                                    </div>
+                                </div>
+
+                                <div class="step-navigation">
+                                    <button type="button" class="btn-back" onclick="prevStep(2)">
+                                        <span class="btn-arrow">←</span>
+                                        Back
+                                    </button>
+                                    <button type="button" class="btn-next" onclick="nextStep(2)">
+                                        Rate Severity
+                                        <span class="btn-arrow">→</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Step 3: Rate Severity -->
+                            <div class="form-step" id="step3">
+                                <div class="step-header">
+                                    <h3>📊 How intense are these symptoms?</h3>
+                                    <p class="step-description">Slide to show how strong each symptom feels (0 = barely noticeable, 10 = very intense)</p>
+                                </div>
+
+                                <div class="form-section">
+                                    <div class="severity-sliders" id="severitySliders">
+                                        <!-- No symptoms selected message -->
+                                        <div class="no-symptoms-message" id="noSymptomsMessage">
+                                            <p>😊 No symptoms selected. You can go back to select symptoms or continue if you're feeling healthy!</p>
+                                        </div>
+
+                                        <!-- Dynamic severity sliders will be shown here -->
+                                        {% for symptom_id, symptom_name in symptoms %}
+                                        <div class="severity-item" id="severity_{{ symptom_id }}" style="display: none;">
+                                            <div class="severity-header">
+                                                <label>{{ symptom_name }}</label>
+                                                <span class="severity-value-display" id="value_{{ symptom_id }}">0</span>
+                                            </div>
+                                            <div class="severity-slider-container">
+                                                <span class="severity-label-min">None</span>
+                                                <input type="range" 
+                                                       id="{{ symptom_id }}" 
+                                                       name="{{ symptom_id }}" 
+                                                       min="0" 
+                                                       max="10" 
+                                                       value="0"
+                                                       class="severity-slider"
+                                                       oninput="updateSeverityValue(this)">
+                                                <span class="severity-label-max">Severe</span>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+
+                                <div class="step-navigation">
+                                    <button type="button" class="btn-back" onclick="prevStep(3)">
+                                        <span class="btn-arrow">←</span>
+                                        Back
+                                    </button>
+                                    <button type="button" class="btn-next" onclick="nextStep(3)">
+                                        Duration & Submit
+                                        <span class="btn-arrow">→</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Step 4: Duration & Submit -->
+                            <div class="form-step" id="step4">
+                                <div class="step-header">
+                                    <h3>⏱️ How long have you been feeling this way?</h3>
+                                    <p class="step-description">This helps me understand if your symptoms are recent or ongoing</p>
+                                </div>
+
+                                <div class="form-section">
+                                    <div class="duration-grid">
+                                        {% for duration in duration_columns %}
+                                        <div class="duration-item">
+                                            <label for="{{ duration }}">{{ duration.replace('_days', '').replace('_', ' ').title() }}</label>
+                                            <div class="duration-input-wrapper">
+                                                <input type="number" 
+                                                       id="{{ duration }}" 
+                                                       name="{{ duration }}" 
+                                                       min="0" 
+                                                       max="365"
+                                                       value="0"
+                                                       placeholder="0">
+                                                <span class="duration-unit">days</span>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+
+                                <!-- Summary Section -->
+                                <div class="form-section summary-section">
+                                    <h4>📋 Assessment Summary</h4>
+                                    <div class="summary-content" id="summaryContent">
+                                        <!-- Will be populated by JavaScript -->
+                                    </div>
+                                </div>
+
+                                <div class="step-navigation">
+                                    <button type="button" class="btn-back" onclick="prevStep(4)">
+                                        <span class="btn-arrow">←</span>
+                                        Back
+                                    </button>
+                                    <button type="submit" class="submit-btn">
+                                        <span class="btn-icon">🔍</span>
+                                        Get Health Analysis
+                                    </button>
+                                </div>
+                            </div>
+
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Disclaimer Section -->
+        <div class="disclaimer">
+            <div class="disclaimer-icon">⚕️</div>
+            <div class="disclaimer-content">
+                <h4>Medical Disclaimer</h4>
+                <p>This prediction is for <strong>educational purposes only</strong> and should not be considered as medical advice. 
+                   The AI-based health assessment is not a substitute for professional medical diagnosis, treatment, or advice. 
+                   Always consult with a qualified healthcare provider for any health concerns.</p>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>© 2026 Symptora AI | Powered by Machine Learning</p>
+        </footer>
+    </div>
+
+    <!-- JavaScript for Progressive Form -->
+    <script>
+        // Track current step
+        let currentStep = 1;
+        const totalSteps = 4;
+
+        // Symptom mapping for checkbox to slider
+        const symptomMap = {
+            'has_fever': 'fever_severity',
+            'has_fatigue': 'fatigue_severity',
+            'has_headache': 'headache_severity',
+            'has_body_ache': 'body_ache_severity',
+            'has_dizziness': 'dizziness_severity',
+            'has_cough': 'cough_severity',
+            'has_shortness_of_breath': 'shortness_of_breath_severity',
+            'has_sore_throat': 'sore_throat_severity',
+            'has_runny_nose': 'runny_nose_severity',
+            'has_nausea': 'nausea_severity',
+            'has_vomiting': 'vomiting_severity',
+            'has_diarrhea': 'diarrhea_severity',
+            'has_abdominal_pain': 'abdominal_pain_severity',
+            'has_chest_pain': 'chest_pain_severity',
+            'has_joint_pain': 'joint_pain_severity',
+            'has_back_pain': 'back_pain_severity',
+            'has_muscle_weakness': 'muscle_weakness_severity',
+            'has_skin_rash': 'skin_rash_severity',
+            'has_anxiety': 'anxiety_severity',
+            'has_depression': 'depression_severity'
+        };
+
+        // Selected symptoms
+        let selectedSymptoms = new Set();
+        
+        // Track if more symptoms are shown
+        let moreSymptomsVisible = false;
+
+        // Form validation
+        function validateForm() {
+            const errorDiv = document.getElementById('symptomError');
+            
+            // Check if any symptoms are selected
+            if (selectedSymptoms.size === 0) {
+                // Show error message
+                errorDiv.style.display = 'flex';
+                errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                
+                // Pulse animation
+                errorDiv.classList.add('shake');
+                setTimeout(() => errorDiv.classList.remove('shake'), 500);
+                
+                return false; // Prevent form submission
+            }
+            
+            // Hide error if previously shown
+            errorDiv.style.display = 'none';
+            return true; // Allow form submission
+        }
+
+        // Toggle show more symptoms
+        function toggleMoreSymptoms() {
+            const container = document.getElementById('moreSymptomsContainer');
+            const btn = document.getElementById('showMoreBtn');
+            const icon = btn.querySelector('.show-more-icon');
+            const text = btn.querySelector('.show-more-text');
+            
+            moreSymptomsVisible = !moreSymptomsVisible;
+            
+            if (moreSymptomsVisible) {
+                container.style.display = 'block';
+                text.textContent = 'Show Less';
+                icon.textContent = '▲';
+                btn.classList.add('expanded');
+            } else {
+                container.style.display = 'none';
+                text.textContent = 'Show More Symptoms';
+                icon.textContent = '▼';
+                btn.classList.remove('expanded');
+            }
+        }
+
+        // Filter symptoms by search
+        function filterSymptoms() {
+            const searchInput = document.getElementById('symptomSearch');
+            const query = searchInput.value.toLowerCase().trim();
+            const clearBtn = document.querySelector('.clear-search');
+            const commonSection = document.querySelector('.common-symptoms');
+            const moreContainer = document.getElementById('moreSymptomsContainer');
+            const noResults = document.getElementById('noSearchResults');
+            const showMoreBtn = document.getElementById('showMoreBtn');
+            
+            // Show/hide clear button
+            clearBtn.style.display = query ? 'block' : 'none';
+            
+            if (!query) {
+                // Reset to default state
+                document.querySelectorAll('.symptom-checkbox').forEach(function(label) {
+                    label.style.display = 'flex';
+                });
+                commonSection.style.display = 'block';
+                moreContainer.style.display = moreSymptomsVisible ? 'block' : 'none';
+                showMoreBtn.style.display = 'block';
+                noResults.style.display = 'none';
+                return;
+            }
+            
+            // Show all containers when searching
+            moreContainer.style.display = 'block';
+            showMoreBtn.style.display = 'none';
+            
+            let hasResults = false;
+            
+            // Filter symptoms
+            document.querySelectorAll('.symptom-checkbox').forEach(function(label) {
+                const symptomText = label.textContent.toLowerCase();
+                const dataSymptom = (label.getAttribute('data-symptom') || '').toLowerCase();
+                const matches = symptomText.includes(query) || dataSymptom.includes(query);
+                
+                label.style.display = matches ? 'flex' : 'none';
+                if (matches) hasResults = true;
+            });
+            
+            // Handle sections visibility
+            document.querySelectorAll('.symptom-category').forEach(function(category) {
+                const visibleCheckboxes = category.querySelectorAll('.symptom-checkbox[style*="display: flex"], .symptom-checkbox:not([style*="display: none"])');
+                let hasVisible = false;
+                category.querySelectorAll('.symptom-checkbox').forEach(function(cb) {
+                    if (cb.style.display !== 'none') hasVisible = true;
+                });
+                category.style.display = hasVisible ? 'block' : 'none';
+            });
+            
+            // Show no results message if needed
+            noResults.style.display = hasResults ? 'none' : 'block';
+            commonSection.style.display = hasResults ? 'block' : 'none';
+        }
+
+        // Clear search
+        function clearSearch() {
+            document.getElementById('symptomSearch').value = '';
+            filterSymptoms();
+        }
+
+        // Navigate to next step
+        function nextStep(current) {
+            if (!validateStep(current)) return;
+            
+            if (current < totalSteps) {
+                showStep(current + 1);
+            }
+        }
+
+        // Navigate to previous step
+        function prevStep(current) {
+            if (current > 1) {
+                showStep(current - 1);
+            }
+        }
+
+        // Show specific step
+        function showStep(step) {
+            // Hide all steps
+            document.querySelectorAll('.form-step').forEach(function(s) {
+                s.classList.remove('active');
+            });
+
+            // Show target step
+            var targetStep = document.getElementById('step' + step);
+            if (!targetStep) return;
+            targetStep.classList.add('active');
+
+            // Update progress bar
+            updateProgress(step);
+
+            // Update progress steps
+            document.querySelectorAll('.progress-step').forEach(function(s) {
+                var stepNum = parseInt(s.dataset.step);
+                s.classList.remove('active', 'completed');
+                if (stepNum < step) {
+                    s.classList.add('completed');
+                } else if (stepNum === step) {
+                    s.classList.add('active');
+                }
+            });
+
+            currentStep = step;
+
+            // Generate summary on step 4
+            if (step === 4) {
+                generateSummary();
+            }
+
+            // Scroll to top of form
+            var formContainer = document.querySelector('.form-container');
+            if (formContainer) {
+                formContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+
+        // Update progress bar fill
+        function updateProgress(step) {
+            var progress = ((step - 1) / (totalSteps - 1)) * 100;
+            var progressFill = document.getElementById('progressFill');
+            if (!progressFill) return;
+            progressFill.style.width = progress + '%';
+        }
+
+        // Validate current step
+        function validateStep(step) {
+            if (step === 1) {
+                var age = document.getElementById('age').value;
+                var bmi = document.getElementById('bmi').value;
+                
+                if (!age || age < 0 || age > 120) {
+                    alert('Please enter a valid age (0-120)');
+                    return false;
+                }
+                if (!bmi || bmi < 10 || bmi > 60) {
+                    alert('Please enter a valid BMI (10-60)');
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // Toggle symptom selection
+        function toggleSymptom(severityId) {
+            var severityItem = document.getElementById('severity_' + severityId);
+            var checkbox = event.target;
+            
+            if (checkbox.checked) {
+                selectedSymptoms.add(severityId);
+                severityItem.style.display = 'block';
+                // Set default severity to 5 when selected
+                var slider = document.getElementById(severityId);
+                slider.value = 5;
+                updateSeverityValue(slider);
+                
+                // Hide validation error when a symptom is selected
+                document.getElementById('symptomError').style.display = 'none';
+            } else {
+                selectedSymptoms.delete(severityId);
+                severityItem.style.display = 'none';
+                // Reset severity to 0
+                document.getElementById(severityId).value = 0;
+            }
+
+            updateSelectedCount();
+            updateNoSymptomsMessage();
+        }
+
+        // Update selected symptoms count
+        function updateSelectedCount() {
+            var selectedCount = document.getElementById('selectedCount');
+            if (!selectedCount) return;
+            selectedCount.textContent = selectedSymptoms.size;
+        }
+
+        // Show/hide no symptoms message
+        function updateNoSymptomsMessage() {
+            var message = document.getElementById('noSymptomsMessage');
+            if (!message) return;
+            message.style.display = selectedSymptoms.size === 0 ? 'block' : 'none';
+        }
+
+        // Update severity value display
+        function updateSeverityValue(slider) {
+            var valueDisplay = document.getElementById('value_' + slider.id);
+            var value = parseInt(slider.value);
+            valueDisplay.textContent = value;
+
+            // Update color based on severity
+            valueDisplay.className = 'severity-value-display';
+            if (value === 0) {
+                valueDisplay.classList.add('severity-none');
+            } else if (value <= 3) {
+                valueDisplay.classList.add('severity-low');
+            } else if (value <= 6) {
+                valueDisplay.classList.add('severity-medium');
+            } else {
+                valueDisplay.classList.add('severity-high');
+            }
+
+            // Update slider track color
+            var percentage = (value / 10) * 100;
+            slider.style.background = 'linear-gradient(to right, #22c55e 0%, #22c55e ' + (percentage * 0.3) + '%, #f59e0b ' + (percentage * 0.6) + '%, #ef4444 ' + percentage + '%, #e5e7eb ' + percentage + '%, #e5e7eb 100%)';
+        }
+
+        // Generate summary
+        function generateSummary() {
+            var summary = document.getElementById('summaryContent');
+            if (!summary) return;
+            var html = '<div class="summary-grid">';
+
+            // Basic Info
+            html += '<div class="summary-item">';
+            html += '<strong>Age:</strong> ' + document.getElementById('age').value + ' years';
+            html += '</div>';
+            html += '<div class="summary-item">';
+            html += '<strong>BMI:</strong> ' + document.getElementById('bmi').value;
+            html += '</div>';
+            html += '<div class="summary-item">';
+            html += '<strong>Gender:</strong> ' + document.getElementById('gender').value;
+            html += '</div>';
+            html += '<div class="summary-item">';
+            html += '<strong>Smoking:</strong> ' + document.getElementById('smoking_status').options[document.getElementById('smoking_status').selectedIndex].text;
+            html += '</div>';
+
+            html += '</div>';
+
+            // Selected Symptoms
+            if (selectedSymptoms.size > 0) {
+                html += '<div class="summary-symptoms">';
+                html += '<strong>Symptoms:</strong>';
+                html += '<ul>';
+                selectedSymptoms.forEach(function(symptom) {
+                    var label = symptom.replace('_severity', '').replace(/_/g, ' ');
+                    var value = document.getElementById(symptom).value;
+                    html += '<li>' + label.charAt(0).toUpperCase() + label.slice(1) + ' (Severity: ' + value + '/10)</li>';
+                });
+                html += '</ul>';
+                html += '</div>';
+            } else {
+                html += '<div class="summary-symptoms">';
+                html += '<strong>Symptoms:</strong> None selected';
+                html += '</div>';
+            }
+
+            summary.innerHTML = html;
+        }
+
+        // BMI Calculator
+        function showBMICalculator(event) {
+            event.preventDefault();
+            var calculator = document.getElementById('bmiCalculator');
+            calculator.style.display = calculator.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function calculateBMI() {
+            var height = parseFloat(document.getElementById('heightCm').value) / 100; // Convert to meters
+            var weight = parseFloat(document.getElementById('weightKg').value);
+            
+            if (height && weight) {
+                var bmi = (weight / (height * height)).toFixed(1);
+                document.getElementById('bmi').value = bmi;
+                document.getElementById('bmiCalculator').style.display = 'none';
+            } else {
+                alert('Please enter both height and weight');
+            }
+        }
+
+        // Start new assessment
+        function startNewAssessment() {
+            window.location.href = '/';
+        }
+
+        // Print diagnosis summary
+        function printDiagnosis() {
+            // Add date to the result for printing
+            const resultContent = document.querySelector('.result-message .message-content');
+            if (resultContent) {
+                const now = new Date();
+                const dateStr = now.toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                resultContent.setAttribute('data-date', dateStr);
+            }
+            window.print();
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            updateProgress(1);
+            updateNoSymptomsMessage();
+
+            // Scroll to result if exists
+            var resultMessage = document.querySelector('.result-message');
+            if (resultMessage) {
+                resultMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        });
+    </script>
+    
+    <!-- DNA Helix Animation Script -->
+    <script>
+        (function() {
+            const canvas = document.getElementById('dnaCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            let width, height;
+            let time = 0;
+            
+            // DNA Configuration
+            const config = {
+                helixCount: 2,
+                particlesPerHelix: 25,
+                radius: 60,
+                verticalSpacing: 35,
+                rotationSpeed: 0.003,  // Very slow rotation
+                waveAmplitude: 0.4,
+                glowIntensity: 0.6,
+                particleSize: 4,
+                connectionWidth: 2
+            };
+            
+            function resize() {
+                width = canvas.width = window.innerWidth;
+                height = canvas.height = window.innerHeight;
+            }
+            
+            function drawDNAHelix() {
+                ctx.clearRect(0, 0, width, height);
+                
+                const centerX = width / 2;
+                const centerY = height / 2;
+                const totalHeight = config.particlesPerHelix * config.verticalSpacing;
+                const startY = centerY - totalHeight / 2;
+                
+                // Store particle positions for connecting lines
+                const helix1 = [];
+                const helix2 = [];
+                
+                // Calculate positions
+                for (let i = 0; i < config.particlesPerHelix; i++) {
+                    const y = startY + i * config.verticalSpacing;
+                    const angle = time + (i * 0.25);
+                    
+                    // Helix 1
+                    const x1 = centerX + Math.cos(angle) * config.radius;
+                    const z1 = Math.sin(angle);
+                    helix1.push({ x: x1, y: y, z: z1 });
+                    
+                    // Helix 2 (opposite phase)
+                    const x2 = centerX + Math.cos(angle + Math.PI) * config.radius;
+                    const z2 = Math.sin(angle + Math.PI);
+                    helix2.push({ x: x2, y: y, z: z2 });
+                }
+                
+                // Draw connecting rungs (base pairs)
+                for (let i = 0; i < config.particlesPerHelix; i += 2) {
+                    const p1 = helix1[i];
+                    const p2 = helix2[i];
+                    const avgZ = (p1.z + p2.z) / 2;
+                    const opacity = 0.15 + (avgZ + 1) * 0.15;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(p1.x, p1.y);
+                    ctx.lineTo(p2.x, p2.y);
+                    ctx.strokeStyle = `rgba(100, 180, 255, ${opacity})`;
+                    ctx.lineWidth = config.connectionWidth;
+                    ctx.stroke();
+                }
+                
+                // Draw helix strands
+                function drawStrand(particles, color) {
+                    // Sort by z for proper depth
+                    const sorted = particles.map((p, i) => ({ ...p, index: i }));
+                    
+                    // Draw strand line
+                    ctx.beginPath();
+                    for (let i = 0; i < sorted.length; i++) {
+                        const p = sorted[i];
+                        const opacity = 0.3 + (p.z + 1) * 0.25;
+                        
+                        if (i === 0) {
+                            ctx.moveTo(p.x, p.y);
+                        } else {
+                            ctx.lineTo(p.x, p.y);
+                        }
+                    }
+                    ctx.strokeStyle = `rgba(${color}, 0.4)`;
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    
+                    // Draw particles with glow
+                    for (let i = 0; i < sorted.length; i++) {
+                        const p = sorted[i];
+                        const depthScale = 0.6 + (p.z + 1) * 0.4;
+                        const size = config.particleSize * depthScale;
+                        const opacity = 0.5 + (p.z + 1) * 0.25;
+                        
+                        // Glow effect
+                        const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, size * 3);
+                        gradient.addColorStop(0, `rgba(${color}, ${opacity * config.glowIntensity})`);
+                        gradient.addColorStop(0.5, `rgba(${color}, ${opacity * 0.3})`);
+                        gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                        
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, size * 3, 0, Math.PI * 2);
+                        ctx.fillStyle = gradient;
+                        ctx.fill();
+                        
+                        // Core particle
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
+                        ctx.fillStyle = `rgba(${color}, ${opacity})`;
+                        ctx.fill();
+                    }
+                }
+                
+                // Draw both strands with different colors
+                drawStrand(helix1, '59, 130, 246');  // Blue
+                drawStrand(helix2, '139, 92, 246');  // Purple
+            }
+            
+            function animate() {
+                time += config.rotationSpeed;
+                drawDNAHelix();
+                requestAnimationFrame(animate);
+            }
+            
+            // Initialize
+            window.addEventListener('resize', resize);
+            resize();
+            animate();
+        })();
+    </script>
+</body>
+</html>
